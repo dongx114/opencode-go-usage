@@ -34,9 +34,75 @@ DSH 的插件安装器支持 GitHub 仓库地址，不需要先 clone、构建�
 3. 点「安装」，完成后启用 **opencode go 订阅用量消耗统计**。
 4. 刷新页面，从 **更多 → 设置 → 用量消耗** 进入。
 
-也可以下载 ZIP 或克隆到本地，在「添加插件」里填**绝对目录路径**安装。GitHub 地址安装需要本机有 `git`；没有 `git` 时用 ZIP + 本地目录。插件没有构建步骤、没有安装脚本、没有必需的 npm 运行时依赖，安装后即可使用。消耗统计会自动采集；额度需要在页面里填入 OpenCode Go API key。
+GitHub 地址安装需要本机有 `git`。没有 `git` 时可以下载源码 ZIP，再按下一节打成 `.tgz` 包安装。插件没有构建步骤、没有安装脚本、没有必需的 npm 运行时依赖，安装后即可使用。消耗统计会自动采集；额度需要在页面里填入 OpenCode Go API key。
 
-### 本地开发（link）
+直接填写**本地源码目录**可能建立目录链接，安装后仍依赖该目录。希望安装后能移走源码，请使用下面的 `.tgz` 方式。
+
+### 独立安装（本地 .tgz 包）
+
+插件可以打成一个包含全部运行文件的 npm 包，安装到 DSH 自己的用户目录后，不再依赖克隆或解压出来的源码目录。这里的「独立」指不依赖外部源码目录；插件仍由 DSH 加载运行。
+
+1. 下载或克隆源码。在 PowerShell 中设置源码路径和安装包目录：
+
+   ```powershell
+   $pluginSource = 'D:\path\to\opencode-go-usage'  # 改成自己的源码目录
+   $dshHome = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $env:USERPROFILE '.dsh' }
+   $packageDir = Join-Path $dshHome 'plugins\local-packages'
+   New-Item -ItemType Directory -Path $packageDir -Force | Out-Null
+   ```
+
+2. 打包，不运行生命周期脚本：
+
+   ```powershell
+   Push-Location $pluginSource
+   try {
+     npm pack --ignore-scripts --pack-destination $packageDir
+     if ($LASTEXITCODE -ne 0) { throw '插件打包失败，请先解决错误。' }
+   } finally {
+     Pop-Location
+   }
+   ```
+
+   当前版本输出 `dsh-opencode-go-usage-0.2.1.tgz`；以命令实际输出的文件名为准。打包只需要 Node.js/npm，不需要先执行 `npm install` 或构建。
+
+3. **首次安装**：打开 DSH 的 **插件 → 添加插件**，填入刚生成的 `.tgz` 文件的绝对路径，安装并启用该插件。不要填写源码目录。例如：
+
+   ```text
+   C:\Users\你的用户名\.dsh\plugins\local-packages\dsh-opencode-go-usage-0.2.1.tgz
+   ```
+
+4. 重新加载 DSH，进入 **更多 → 设置 → 用量消耗**。确认安装正常后，外部源码目录可以移动或删除。
+
+保留 DSH 用户目录中的 `.tgz` 包：它是本地依赖的安装来源，后续重装和依赖恢复会用到。备份 DSH 用户目录时一并保留 `plugins/local-packages`。
+
+### 从 link 安装迁移为独立安装
+
+已经安装同名插件时，不必先卸载或删除统计数据：
+
+1. 在 DSH 中选择 **应用 → 退出并停止任务**。
+2. 按上一节打包，把 `.tgz` 放到当前 `$DSH_HOME/plugins/local-packages` 中。
+3. 在同一个 PowerShell 中进入当前 profile，替换这一个依赖。下面以默认 `web` profile 为例，需要本机能运行 `pnpm`：
+
+   ```powershell
+   $profileDir = Join-Path $dshHome 'profiles\web'
+   Push-Location $profileDir
+   try {
+     pnpm add 'file:../../plugins/local-packages/dsh-opencode-go-usage-0.2.1.tgz' --ignore-scripts
+     if ($LASTEXITCODE -ne 0) { throw '插件安装失败，请先解决错误。' }
+     node -p "require('node:fs').realpathSync('node_modules/dsh-opencode-go-usage')"
+   } finally {
+     Pop-Location
+   }
+   ```
+
+   包名中的版本应与刚生成的文件一致。`pnpm add` 同时更新 `package.json` 和 `pnpm-lock.yaml`，保留原有 bundle 启用项与其他依赖。
+
+4. 检查 profile 的 `package.json`，该依赖应变成 `file:../../plugins/local-packages/…tgz`（Windows 上也可能使用反斜杠），不再是 `link:外部目录`。上面 `realpathSync` 的结果应位于 DSH 用户目录内。pnpm 仍可能使用内部链接，但实际插件文件不能再指向外部源码目录。
+5. 重新打开 DSH，检查用量消耗页面。确认正常后可以移走原源码目录；统计账本仍保存在原有 DSH 用户目录中。
+
+如果旧源码目录已经丢失，请先恢复它，或重新下载源码打包。备份或启动时出现 `ENOENT … dsh-opencode-go-usage`，应先检查是否还残留失效的 `link:` 引用。
+
+### 本地开发（link，需要保留源码目录）
 
 也可以把源码放在任意目录，通过 profile 的 `link:` 依赖安装。源码不需要放进 DSH 安装目录，也不要修改 DSH 自身源码。
 
