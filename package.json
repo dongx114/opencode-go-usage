@@ -1,6 +1,6 @@
 {
   "name": "dsh-opencode-go-usage",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "OpenCode Go subscription quota, token spend priced per model, for DeepSeek Harness.",
   "private": true,
   "license": "MIT",

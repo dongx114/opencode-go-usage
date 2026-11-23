@@ -113,13 +113,19 @@ window.__ModuleLoader__.load({
     }
 
     const CSS = `
-.ocg-page{box-sizing:border-box;display:flex;flex-direction:column;gap:12px;width:100%;max-width:760px;color:var(--dsw-alias-label-primary)}
+.ocg-page{box-sizing:border-box;display:flex;flex-direction:column;gap:10px;width:100%;max-width:760px;color:var(--dsw-alias-label-primary)}
 .ocg-page h2{margin:0 0 2px;font-size:22px;line-height:30px;font-weight:650;letter-spacing:-.3px}
-.ocg-card{box-sizing:border-box;padding:18px 20px;border:0.5px solid var(--dsw-alias-settings-card-stroke,var(--dsw-alias-border-l1));border-radius:var(--dsw-radius-xl,16px);background:var(--dsw-alias-settings-card-fill,var(--dsw-alias-bg-layer-2))}
-.ocg-card-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;min-height:30px}
+.ocg-card{box-sizing:border-box;padding:14px 18px;border:0.5px solid var(--dsw-alias-settings-card-stroke,var(--dsw-alias-border-l1));border-radius:var(--dsw-radius-xl,16px);background:var(--dsw-alias-settings-card-fill,var(--dsw-alias-bg-layer-2))}
+.ocg-card-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;min-height:26px}
 .ocg-card-title{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;font-size:14px;font-weight:600;line-height:22px}
 .ocg-card-title small{font-size:11px;line-height:16px;font-weight:400;color:var(--dsw-alias-label-secondary)}
 .ocg-total{margin-top:12px;font-size:36px;line-height:44px;font-weight:650;letter-spacing:-1px;font-variant-numeric:tabular-nums}
+.ocg-card-total{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;padding:12px 16px}
+.ocg-card-total>.ocg-card-head{grid-column:1;grid-row:1;min-height:38px}
+.ocg-card-total>.ocg-total{grid-column:2;grid-row:1;align-self:center;margin-top:0;font-size:30px;line-height:38px}
+.ocg-card-total>.ocg-quota-hint{grid-column:1 / -1;margin-top:2px}
+.ocg-card-total>.ocg-model-details,.ocg-card-total>.ocg-empty{grid-column:1 / -1}
+.ocg-card-total>.ocg-model-details{margin-top:10px;padding-top:8px}
 .ocg-model-details{margin-top:16px;padding-top:12px;border-top:1px solid var(--dsw-alias-border-l1)}
 .ocg-model-summary{display:flex;align-items:center;gap:8px;padding:3px 0;border-radius:4px;list-style:none;cursor:pointer;font-size:13px;line-height:22px}
 .ocg-model-summary::-webkit-details-marker{display:none}
@@ -149,7 +155,7 @@ window.__ModuleLoader__.load({
 .ocg-quota-message{margin-top:10px;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px}
 .ocg-quota-message[data-error='true']{color:var(--dsw-alias-state-error-primary,#d64545)}
 .ocg-quota-updated{color:var(--dsw-alias-label-secondary);font-size:11px;line-height:16px;white-space:nowrap}
-.ocg-quota-list{display:flex;flex-direction:column;gap:14px;margin-top:16px}
+.ocg-quota-list{display:flex;flex-direction:column;gap:10px;margin-top:12px}
 .ocg-quota-row{display:grid;grid-template-columns:52px minmax(0,1fr);align-items:center;gap:10px}
 .ocg-quota-label{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px}
 .ocg-quota-body{min-width:0}
@@ -177,11 +183,11 @@ window.__ModuleLoader__.load({
 .ocg-xlabel{text-align:center;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:16px;white-space:nowrap}
 .ocg-xlabel b{display:block;font-weight:500;color:var(--dsw-alias-label-secondary)}
 .ocg-chart-empty{display:flex;align-items:center;justify-content:center;min-height:150px;margin-top:12px;border:1px dashed var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,12px);color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px}
-.ocg-card.ocg-card-daily{padding-top:14px;padding-bottom:14px}
-.ocg-card-daily .ocg-chart{margin-top:12px}
-.ocg-card-daily .ocg-yaxis,.ocg-card-daily .ocg-plot{height:110px}
-.ocg-card-daily .ocg-chart-empty{min-height:100px}
-.ocg-card-daily .ocg-legend{margin-top:8px}
+.ocg-card.ocg-card-daily{padding-top:12px;padding-bottom:12px}
+.ocg-card-daily .ocg-chart{margin-top:8px}
+.ocg-card-daily .ocg-yaxis,.ocg-card-daily .ocg-plot{height:90px}
+.ocg-card-daily .ocg-chart-empty{min-height:80px}
+.ocg-card-daily .ocg-legend{margin-top:6px}
 .ocg-tooltip{position:absolute;z-index:3;top:0;min-width:158px;max-width:220px;padding:10px 12px;border:0.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-overlay);box-shadow:0 8px 28px rgba(0,0,0,.16);font-size:12px;line-height:18px;pointer-events:none}
 .ocg-tooltip-date{margin-bottom:6px;font-weight:600;white-space:nowrap}
 .ocg-tooltip-row{display:flex;align-items:center;gap:7px;min-width:0}
@@ -577,7 +583,7 @@ window.__ModuleLoader__.load({
           style: { bottom: `${fraction * 100}%` },
         }))
         const columns = data.days.map((day, index) => {
-          const barHeight = day.amount > 0 ? Math.max(2, (day.amount / maxAmount) * 100) : 0
+          const barHeight = day.amount > 0 ? Math.max(2, (day.amount / maxAmount) * 80) : 0
           const segments = day.models.map(entry => h('div', {
             className: 'ocg-seg',
             key: entry.id,
@@ -613,7 +619,7 @@ window.__ModuleLoader__.load({
           ])
           : null
 
-        const totalCard = h('section', { className: 'ocg-card', key: 'total' }, [
+        const totalCard = h('section', { className: 'ocg-card ocg-card-total', key: 'total' }, [
           h('div', { className: 'ocg-card-head', key: 'head' }, h('span', { className: 'ocg-card-title', key: 'title' }, [
             t('total'),
             h('small', { key: 'since' }, t('since').replace('{time}', beijingTimestamp(data.startAt))),

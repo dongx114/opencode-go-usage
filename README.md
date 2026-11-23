@@ -12,6 +12,8 @@ GitHub：<https://github.com/dongx114/opencode-go-usage>
 - **总消耗（估算）**：本机 DSH 对话中全部模型的基础 token 计价合计。下方模型明细默认收起，点击「模型明细」一行的「展开」查看各模型金额，再点「收起」折叠；总金额始终显示。
 - **每日消耗**：固定 7 天的堆叠柱状图，只需选择「显示终止日期」；柱子按模型分色，悬停显示该日各模型金额与当日合计。
 
+默认收起模型明细时，采用紧凑的总消耗和每日消耗布局，方便在同一屏查看三项订阅额度。
+
 ## 安装
 
 ### 在 DSH 里直接安装（推荐）
@@ -63,12 +65,12 @@ GitHub 地址安装需要本机有 `git`。没有 `git` 时可以下载源码 ZI
    }
    ```
 
-   当前版本输出 `dsh-opencode-go-usage-0.2.3.tgz`；以命令实际输出的文件名为准。打包只需要 Node.js/npm，不需要先执行 `npm install` 或构建。
+   当前版本输出 `dsh-opencode-go-usage-0.2.4.tgz`；以命令实际输出的文件名为准。打包只需要 Node.js/npm，不需要先执行 `npm install` 或构建。
 
 3. **首次安装**：打开 DSH 的 **插件 → 添加插件**，填入刚生成的 `.tgz` 文件的绝对路径，安装并启用该插件。不要填写源码目录。例如：
 
    ```text
-   C:\Users\你的用户名\.dsh\plugins\local-packages\dsh-opencode-go-usage-0.2.3.tgz
+   C:\Users\你的用户名\.dsh\plugins\local-packages\dsh-opencode-go-usage-0.2.4.tgz
    ```
 
 4. 重新加载 DSH，进入 **更多 → 设置 → 用量消耗**。确认安装正常后，外部源码目录可以移动或删除。
@@ -87,7 +89,7 @@ GitHub 地址安装需要本机有 `git`。没有 `git` 时可以下载源码 ZI
    $profileDir = Join-Path $dshHome 'profiles\web'
    Push-Location $profileDir
    try {
-     pnpm add 'file:../../plugins/local-packages/dsh-opencode-go-usage-0.2.3.tgz' --ignore-scripts
+     pnpm add 'file:../../plugins/local-packages/dsh-opencode-go-usage-0.2.4.tgz' --ignore-scripts
      if ($LASTEXITCODE -ne 0) { throw '插件安装失败，请先解决错误。' }
      node -p "require('node:fs').realpathSync('node_modules/dsh-opencode-go-usage')"
    } finally {
