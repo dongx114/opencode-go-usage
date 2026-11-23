@@ -4,6 +4,8 @@
 
 GitHub：<https://github.com/dongx114/opencode-go-usage>
 
+> GitHub 仓库地址使用 ASCII slug `opencode-go-usage`（平台限制）；项目名、插件标题和页面标题是 **opencode go 订阅用量消耗统计**。
+
 页面包含三个模块：
 
 - **订阅额度**：填入 OpenCode Go API key，显示 5 小时、周、月三个横向额度条；每条显示已用百分比与重置时间。
