@@ -175,7 +175,7 @@ assert.ok(text.includes('52%'))
 text = render(['', null, 'loading', '', false, -1, 0, '', null, 'idle', ''])
 assert.ok(text.includes('填入 API key 后查询额度'))
 
-text = render(['', ready, 'ready', '', false, -1, 0, 'sk-test', null, 'error', 'unauthorized'])
+text = render(['', ready, 'ready', '', false, -1, 0, 'test-key-not-real', null, 'error', 'unauthorized'])
 assert.ok(text.includes('API key 无效，或不是 OpenCode Go 订阅 key'))
 
 console.log('render smoke ok')

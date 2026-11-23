@@ -187,7 +187,7 @@ globalThis.fetch = async (url, init) => {
     },
   }), { status: 200, headers: { 'content-type': 'application/json' } })
 }
-const quota = await quotaCall({ key: 'sk-test-123456' })
+const quota = await quotaCall({ key: 'test-key-not-real' })
 assert.equal(quota.status, 200)
 assert.equal(quota.body.ok, true)
 assert.equal(quota.body.windows.length, 3)
@@ -195,10 +195,10 @@ assert.equal(quota.body.windows[0].percent, 52)
 assert.equal(quota.body.windows[0].resetsAt, '2026-11-23T08:34:52.704Z')
 assert.equal(upstreamRequest.url, 'https://opencode.ai/zen/go/v1/usage')
 assert.equal(upstreamRequest.init.method, 'GET')
-assert.equal(upstreamRequest.init.headers.authorization, 'Bearer sk-test-123456')
+assert.equal(upstreamRequest.init.headers.authorization, 'Bearer test-key-not-real')
 
 globalThis.fetch = async () => new Response('{"error":"unauthorized"}', { status: 401 })
-const unauthorized = await quotaCall({ key: 'sk-test-123456' })
+const unauthorized = await quotaCall({ key: 'test-key-not-real' })
 assert.equal(unauthorized.status, 401)
 assert.equal(unauthorized.body.error, 'unauthorized')
 
@@ -224,7 +224,7 @@ const oversized = await quotaCall('x'.repeat(17 * 1024))
 assert.equal(oversized.status, 413)
 assert.equal(oversized.body.error, 'too-large')
 
-const foreignHost = await quotaCall({ key: 'sk-test-123456' }, { host: 'evil.example:3080' })
+const foreignHost = await quotaCall({ key: 'test-key-not-real' }, { host: 'evil.example:3080' })
 assert.equal(foreignHost.status, 403)
 assert.equal(foreignHost.body.error, 'forbidden')
 
