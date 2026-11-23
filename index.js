@@ -14,6 +14,8 @@ const LOOPBACK_HOST = /^(127\.0\.0\.1|localhost|\[::1\])(?::\d+)?$/i
 const QUOTA_URL = 'https://opencode.ai/zen/go/v1/usage'
 const QUOTA_TIMEOUT_MS = 30_000
 const QUOTA_BODY_LIMIT = 16 * 1024
+// Standard OpenCode Go plan quotas, in USD. Go Plus / Teams differ; adjust here.
+const QUOTA_LIMITS = { rolling: 12, weekly: 30, monthly: 60 }
 const QUOTA_WINDOWS = [
   { id: 'rolling', aliases: ['rolling', 'rolling5h', 'fivehour', 'five_hour', '5h', 'session'] },
   { id: 'weekly', aliases: ['weekly', 'week', 'weeklywindow'] },
@@ -116,16 +118,27 @@ export function normalizeQuota(payload) {
     if (node === undefined) continue
     let percent = quotaNumber(quotaField(node, QUOTA_PERCENT_KEYS))
     const used = quotaNumber(quotaField(node, QUOTA_USED_KEYS))
-    const limit = quotaNumber(quotaField(node, QUOTA_LIMIT_KEYS))
-    if (percent === null && used !== null && limit !== null && limit > 0) {
-      percent = used * 100 / limit
+    const apiLimit = quotaNumber(quotaField(node, QUOTA_LIMIT_KEYS))
+    if (percent === null && used !== null && apiLimit !== null && apiLimit > 0) {
+      percent = used * 100 / apiLimit
     }
     if (percent === null) continue
+    const limit = apiLimit !== null && apiLimit > 0
+      ? apiLimit
+      : QUOTA_LIMITS[spec.id] ?? null
+    const amount = used !== null && apiLimit !== null && apiLimit > 0
+      ? used
+      : limit !== null
+        ? Math.max(0, percent) * limit / 100
+        : null
     windows.push({
       id: spec.id,
       percent: Math.max(0, percent),
       resetsAt: quotaTime(quotaField(node, QUOTA_RESET_KEYS)),
       status: quotaStatus(quotaField(node, QUOTA_STATUS_KEYS)),
+      limit,
+      amount,
+      currency: 'USD',
     })
   }
   return windows
@@ -165,7 +178,7 @@ async function fetchQuota(key) {
       headers: {
         authorization: `Bearer ${key}`,
         accept: 'application/json',
-        'user-agent': 'dsh-opencode-go-usage/0.2.0',
+        'user-agent': 'dsh-opencode-go-usage/0.2.1',
       },
       signal: controller.signal,
       redirect: 'follow',

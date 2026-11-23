@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "OpenCode Go usage",
-    "description": "Shows OpenCode Go subscription quota, token spend priced from the model rate table, a five-hour/weekly/monthly quota bar, a cumulative total, and a seven-day daily bar chart under Settings → Usage spend."
+    "description": "Shows OpenCode Go subscription quota, token spend priced from the model rate table, five-hour/weekly/monthly quota bars with used percentage and USD amount, a cumulative total, and a seven-day daily bar chart under Settings → Usage spend."
   }
 }

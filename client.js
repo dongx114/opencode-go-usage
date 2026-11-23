@@ -131,13 +131,15 @@ window.__ModuleLoader__.load({
 .ocg-quota-message[data-error='true']{color:var(--dsw-alias-state-error-primary,#d64545)}
 .ocg-quota-updated{color:var(--dsw-alias-label-secondary);font-size:11px;line-height:16px;white-space:nowrap}
 .ocg-quota-list{display:flex;flex-direction:column;gap:14px;margin-top:16px}
-.ocg-quota-row{display:grid;grid-template-columns:52px minmax(0,1fr) 48px;align-items:center;gap:10px}
+.ocg-quota-row{display:grid;grid-template-columns:52px minmax(0,1fr);align-items:center;gap:10px}
 .ocg-quota-label{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px}
 .ocg-quota-body{min-width:0}
-.ocg-quota-track{height:8px;border:0.5px solid var(--dsw-alias-border-l1);border-radius:999px;background:var(--dsw-alias-bg-layer-1);overflow:hidden}
+.ocg-quota-line{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0}
+.ocg-quota-track{flex:1 1 160px;max-width:300px;min-width:100px;height:8px;border:0.5px solid var(--dsw-alias-border-l1);border-radius:999px;background:var(--dsw-alias-bg-layer-1);overflow:hidden}
 .ocg-quota-fill{height:100%;border-radius:999px;background:var(--ocg-quota-color,var(--dsw-alias-brand-primary,#4F7CFF));transition:width .3s ease}
 .ocg-quota-meta{display:flex;flex-wrap:wrap;gap:2px 8px;margin-top:5px;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:16px}
-.ocg-quota-pct{text-align:right;font-size:12px;line-height:18px;font-variant-numeric:tabular-nums}
+.ocg-quota-pct{flex:0 0 38px;text-align:right;font-size:12px;line-height:18px;font-variant-numeric:tabular-nums}
+.ocg-quota-amount{flex:0 0 auto;color:var(--dsw-alias-label-primary);font-size:12px;line-height:18px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
 .ocg-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .ocg-date{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px}
 .ocg-date input{box-sizing:border-box;min-width:120px;padding:5px 8px;border:0.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;color-scheme:inherit}
@@ -175,7 +177,7 @@ window.__ModuleLoader__.load({
 .ocg-legend-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ocg-state{padding:24px;color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px}
 .ocg-state button{margin-left:10px;padding:4px 12px;border:0.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font:inherit;cursor:pointer}
-@media (max-width:520px){.ocg-page h2{font-size:20px;line-height:28px}.ocg-card{padding:16px}.ocg-plot,.ocg-xaxis{gap:6px}.ocg-xlabel{font-size:10px;line-height:15px}.ocg-total{font-size:32px;line-height:40px}.ocg-quota-row{grid-template-columns:46px minmax(0,1fr) 42px;gap:8px}.ocg-quota-label{font-size:11px}.ocg-quota-form button{flex:1 1 auto}}
+@media (max-width:520px){.ocg-page h2{font-size:20px;line-height:28px}.ocg-card{padding:16px}.ocg-plot,.ocg-xaxis{gap:6px}.ocg-xlabel{font-size:10px;line-height:15px}.ocg-total{font-size:32px;line-height:40px}.ocg-quota-row{grid-template-columns:46px minmax(0,1fr);gap:8px}.ocg-quota-label{font-size:11px}.ocg-quota-track{flex-basis:120px;max-width:240px}.ocg-quota-pct{flex-basis:34px}.ocg-quota-amount{font-size:11px}.ocg-quota-form button{flex:1 1 auto}}
 @media (prefers-reduced-motion:reduce){.ocg-bar,.ocg-chart,.ocg-quota-fill{transition:none}}
 `
 
@@ -200,6 +202,10 @@ window.__ModuleLoader__.load({
       if (amount < 1) return `$${amount.toFixed(2)}`
       if (amount < 10) return `$${amount.toFixed(1)}`
       return `$${amount.toFixed(0)}`
+    }
+
+    function quotaMoney(amount) {
+      return Number.isFinite(amount) ? `$${amount.toFixed(2)}` : ''
     }
 
     function dayLabel(date, lang) {
@@ -414,6 +420,11 @@ window.__ModuleLoader__.load({
           const percent = item !== undefined && Number.isFinite(item.percent) ? item.percent : null
           const width = percent === null ? 0 : Math.max(0, Math.min(100, percent))
           const percentText = percent === null ? '--' : `${Math.round(percent)}%`
+          const amount = item !== undefined && Number.isFinite(item.amount) ? item.amount : null
+          const limit = item !== undefined && Number.isFinite(item.limit) ? item.limit : null
+          const amountText = amount === null || limit === null
+            ? ''
+            : `${quotaMoney(amount)} / ${quotaMoney(limit)}`
           const resetText = item?.resetsAt ? beijingTimestamp(item.resetsAt) : ''
           const reset = resetText === '' ? '' : t('quotaReset').replace('{time}', resetText)
           const state = item?.status && !/^(ok|active|normal|good|valid)$/i.test(item.status)
@@ -422,25 +433,37 @@ window.__ModuleLoader__.load({
           const detail = item === undefined
             ? (quotaStatus === 'ready' ? t('quotaNotReturned') : '')
             : [reset, state].filter(Boolean).join(' · ')
+          const valueText = percent === null
+            ? undefined
+            : `${t('quotaUsed').replace('{percent}', percentText)}${amountText === '' ? '' : ` · ${amountText}`}`
           return h('div', { className: 'ocg-quota-row', key: spec.id }, [
             h('span', { className: 'ocg-quota-label', key: 'label' }, t(spec.label)),
             h('div', { className: 'ocg-quota-body', key: 'body' }, [
-              h('div', {
-                className: 'ocg-quota-track',
-                key: 'track',
-                role: 'progressbar',
-                'aria-label': `${t(spec.label)} ${percentText}`,
-                'aria-valuemin': 0,
-                'aria-valuemax': 100,
-                'aria-valuenow': percent === null ? undefined : Math.min(100, Math.round(percent)),
-                'aria-valuetext': percent === null ? undefined : t('quotaUsed').replace('{percent}', percentText),
-              }, h('div', {
-                className: 'ocg-quota-fill',
-                style: { width: `${width}%`, '--ocg-quota-color': quotaTone(percent) },
-              })),
+              h('div', { className: 'ocg-quota-line', key: 'line' }, [
+                h('div', {
+                  className: 'ocg-quota-track',
+                  key: 'track',
+                  role: 'progressbar',
+                  'aria-label': `${t(spec.label)} ${percentText}${amountText === '' ? '' : ` · ${amountText}`}`,
+                  'aria-valuemin': 0,
+                  'aria-valuemax': 100,
+                  'aria-valuenow': percent === null ? undefined : Math.min(100, Math.round(percent)),
+                  'aria-valuetext': valueText,
+                }, h('div', {
+                  className: 'ocg-quota-fill',
+                  style: { width: `${width}%`, '--ocg-quota-color': quotaTone(percent) },
+                })),
+                h('span', {
+                  className: 'ocg-quota-pct',
+                  key: 'pct',
+                  style: percent === null ? undefined : { color: quotaTone(percent) },
+                }, percentText),
+                amountText === ''
+                  ? null
+                  : h('span', { className: 'ocg-quota-amount', key: 'amount' }, amountText),
+              ]),
               detail === '' ? null : h('div', { className: 'ocg-quota-meta', key: 'meta' }, detail),
             ]),
-            h('span', { className: 'ocg-quota-pct', key: 'pct' }, percentText),
           ])
         })
         const quotaMessage = quotaStatus === 'error'

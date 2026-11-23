@@ -131,9 +131,9 @@ const ready = {
 const quotaReady = {
   fetchedAt: '2026-11-23T11:05:00Z',
   windows: [
-    { id: 'rolling', percent: 52, resetsAt: '2026-11-23T08:34:52Z', status: 'ok' },
-    { id: 'weekly', percent: 20, resetsAt: '2026-11-28T00:00:00Z', status: 'ok' },
-    { id: 'monthly', percent: 61, resetsAt: '2026-11-25T06:30:41Z', status: 'ok' },
+    { id: 'rolling', percent: 52, limit: 12, amount: 6.24, currency: 'USD', resetsAt: '2026-11-23T08:34:52Z', status: 'ok' },
+    { id: 'weekly', percent: 20, limit: 30, amount: 6, currency: 'USD', resetsAt: '2026-11-28T00:00:00Z', status: 'ok' },
+    { id: 'monthly', percent: 61, limit: 60, amount: 36.6, currency: 'USD', resetsAt: '2026-11-25T06:30:41Z', status: 'ok' },
   ],
 }
 
@@ -146,6 +146,9 @@ assert.ok(text.includes('5 小时'))
 assert.ok(text.includes('52%'))
 assert.ok(text.includes('20%'))
 assert.ok(text.includes('61%'))
+assert.ok(text.includes('$6.24 / $12.00'))
+assert.ok(text.includes('$6.00 / $30.00'))
+assert.ok(text.includes('$36.60 / $60.00'))
 assert.ok(text.includes('重置 11-23 16:34'))
 assert.ok(text.includes('更新于 11-23 19:05'))
 assert.ok(text.includes('总消耗'))

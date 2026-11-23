@@ -145,9 +145,9 @@ const normalized = normalizeQuota({
   },
 })
 assert.deepEqual(normalized, [
-  { id: 'rolling', percent: 52, resetsAt: null, status: 'ok' },
-  { id: 'weekly', percent: 50, resetsAt: null, status: '' },
-  { id: 'monthly', percent: 61, resetsAt: null, status: '' },
+  { id: 'rolling', percent: 52, resetsAt: null, status: 'ok', limit: 12, amount: 6.24, currency: 'USD' },
+  { id: 'weekly', percent: 50, resetsAt: null, status: '', limit: 10, amount: 5, currency: 'USD' },
+  { id: 'monthly', percent: 61, resetsAt: null, status: '', limit: 60, amount: 36.6, currency: 'USD' },
 ])
 
 const quotaCall = async (body, options = {}) => {
@@ -192,6 +192,9 @@ assert.equal(quota.status, 200)
 assert.equal(quota.body.ok, true)
 assert.equal(quota.body.windows.length, 3)
 assert.equal(quota.body.windows[0].percent, 52)
+assert.equal(quota.body.windows[0].limit, 12)
+assert.equal(quota.body.windows[0].amount, 6.24)
+assert.equal(quota.body.windows[0].currency, 'USD')
 assert.equal(quota.body.windows[0].resetsAt, '2026-11-23T08:34:52.704Z')
 assert.equal(upstreamRequest.url, 'https://opencode.ai/zen/go/v1/usage')
 assert.equal(upstreamRequest.init.method, 'GET')
