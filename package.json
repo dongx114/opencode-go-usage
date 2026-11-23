@@ -1,0 +1,60 @@
+{
+  "name": "dsh-opencode-go-usage",
+  "version": "0.2.0",
+  "description": "OpenCode Go subscription quota, token spend priced per model, for DeepSeek Harness.",
+  "private": true,
+  "license": "MIT",
+  "author": "dongx114",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dongx114/opencode-go-usage.git"
+  },
+  "homepage": "https://github.com/dongx114/opencode-go-usage#readme",
+  "bugs": {
+    "url": "https://github.com/dongx114/opencode-go-usage/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "opencode-go",
+    "usage"
+  ],
+  "scripts": {
+    "test": "node test.mjs && node test-client.mjs && node test-render.mjs"
+  },
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "prices.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-locale"
+      ],
+      "platform": "web"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "react": "^18.2.0"
+  }
+}
