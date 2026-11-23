@@ -11,19 +11,15 @@ const PROVIDER = 'opencode-go'
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const MAX_READ_BATCH = 400
 const LOOPBACK_HOST = /^(127\.0\.0\.1|localhost|\[::1\])(?::\d+)?$/i
-const QUOTA_URL = 'https://opencode.ai/zen/go/v1/usage'
+const QUOTA_URL = 'https://opencode.ai/inference/go/v1/usage'
 const QUOTA_TIMEOUT_MS = 30_000
 const QUOTA_BODY_LIMIT = 16 * 1024
-// Standard OpenCode Go plan quotas, in USD. Go Plus / Teams differ; adjust here.
-const QUOTA_LIMITS = { rolling: 12, weekly: 30, monthly: 60 }
 const QUOTA_WINDOWS = [
   { id: 'rolling', aliases: ['rolling', 'rolling5h', 'fivehour', 'five_hour', '5h', 'session'] },
   { id: 'weekly', aliases: ['weekly', 'week', 'weeklywindow'] },
   { id: 'monthly', aliases: ['monthly', 'month', 'monthlywindow'] },
 ]
 const QUOTA_PERCENT_KEYS = ['percent', 'percentage', 'usedPercent', 'used_percent', 'percentUsed', 'usedPercentage', 'usagePercent', 'usage_percentage', 'usage_percent', 'utilization', 'pct']
-const QUOTA_USED_KEYS = ['used', 'usage', 'consumed', 'cost', 'spent']
-const QUOTA_LIMIT_KEYS = ['limit', 'cap', 'total', 'quota', 'max']
 const QUOTA_RESET_KEYS = ['resetsAt', 'resetAt', 'reset_at', 'resets_at', 'resets', 'reset']
 const QUOTA_STATUS_KEYS = ['status', 'state']
 
@@ -116,29 +112,13 @@ export function normalizeQuota(payload) {
   for (const spec of QUOTA_WINDOWS) {
     const node = findQuotaWindow(payload, spec.aliases)
     if (node === undefined) continue
-    let percent = quotaNumber(quotaField(node, QUOTA_PERCENT_KEYS))
-    const used = quotaNumber(quotaField(node, QUOTA_USED_KEYS))
-    const apiLimit = quotaNumber(quotaField(node, QUOTA_LIMIT_KEYS))
-    if (percent === null && used !== null && apiLimit !== null && apiLimit > 0) {
-      percent = used * 100 / apiLimit
-    }
+    const percent = quotaNumber(quotaField(node, QUOTA_PERCENT_KEYS))
     if (percent === null) continue
-    const limit = apiLimit !== null && apiLimit > 0
-      ? apiLimit
-      : QUOTA_LIMITS[spec.id] ?? null
-    const amount = used !== null && apiLimit !== null && apiLimit > 0
-      ? used
-      : limit !== null
-        ? Math.max(0, percent) * limit / 100
-        : null
     windows.push({
       id: spec.id,
-      percent: Math.max(0, percent),
+      percent: Math.max(0, Math.min(100, percent)),
       resetsAt: quotaTime(quotaField(node, QUOTA_RESET_KEYS)),
       status: quotaStatus(quotaField(node, QUOTA_STATUS_KEYS)),
-      limit,
-      amount,
-      currency: 'USD',
     })
   }
   return windows
@@ -178,7 +158,7 @@ async function fetchQuota(key) {
       headers: {
         authorization: `Bearer ${key}`,
         accept: 'application/json',
-        'user-agent': 'dsh-opencode-go-usage/0.2.1',
+        'user-agent': 'dsh-opencode-go-usage/0.2.2',
       },
       signal: controller.signal,
       redirect: 'follow',
@@ -294,13 +274,18 @@ function tokenTotal(row) {
 }
 
 function buildRecord(sessionId, event, state, usage) {
-  if (state.provider !== PROVIDER || typeof state.model !== 'string' || state.model.length === 0) return undefined
+  // A settled answer owns its actual model identity. A request header is only
+  // the fallback for attempts (or older messages) without a source envelope.
+  const source = event.data?.message?.source
+  const provider = typeof source?.provider === 'string' ? source.provider : state.provider
+  const model = typeof source?.model === 'string' ? source.model : state.model
+  if (provider !== PROVIDER || typeof model !== 'string' || model.length === 0) return undefined
   if (typeof event.time !== 'number' || event.time < START_AT) return undefined
   const cacheHit = nonNegative(usage?.cacheReadTokens)
   const cacheMiss = nonNegative(usage?.inputTokens) + nonNegative(usage?.cacheWriteTokens)
   const output = nonNegative(usage?.outputTokens)
   if (cacheHit + cacheMiss + output === 0) return undefined
-  const rates = ratesFor(state.model)
+  const rates = ratesFor(model)
   return {
     v: 1,
     id: `${sessionId}:${event.seq}`,
@@ -309,8 +294,8 @@ function buildRecord(sessionId, event, state, usage) {
     seq: event.seq,
     kind: event.type === 'assistant/message' ? 'message' : 'attempt',
     provider: PROVIDER,
-    model: state.model,
-    name: displayNameFor(state.model),
+    model,
+    name: displayNameFor(model),
     rates,
     tokens: { cacheHit, cacheMiss, output },
   }
@@ -321,6 +306,7 @@ function rememberHeader(state, event) {
   const config = event.data?.header?.config
   if (typeof config?.provider === 'string') state.provider = config.provider
   if (typeof config?.model === 'string') state.model = config.model
+  if (typeof event.seq === 'number') state.headerSeq = event.seq
 }
 
 /**
@@ -334,6 +320,7 @@ export function apply(ctx) {
   const ledger = path.join(dataDir, 'usage.jsonl')
   const rows = new Map()
   const headers = new Map()
+  const scannedRevisions = new Map()
 
   try {
     fs.mkdirSync(dataDir, { recursive: true })
@@ -372,7 +359,14 @@ export function apply(ctx) {
   }
 
   const append = row => {
-    if (rows.has(row.id)) return
+    const old = rows.get(row.id)
+    if (old !== undefined && old.provider === row.provider && old.model === row.model
+      && old.at === row.at && old.kind === row.kind
+      && old.tokens?.cacheHit === row.tokens.cacheHit
+      && old.tokens?.cacheMiss === row.tokens.cacheMiss
+      && old.tokens?.output === row.tokens.output) return
+    // Corrections are append-only; loading the ledger already keeps the last
+    // record for an id, so repairing attribution never double-counts a call.
     rows.set(row.id, row)
     try {
       fs.appendFileSync(ledger, `${JSON.stringify(row)}\n`, 'utf8')
@@ -416,15 +410,20 @@ export function apply(ctx) {
     for (const snapshot of snapshots) {
       const createdAt = snapshot.header?.createdAt ?? 0
       let fileTime = 0
+      let fileRevision
       const location = snapshot.location
       if (location?.kind === 'jsonl' && typeof location.path === 'string') {
         try {
-          fileTime = fs.statSync(location.path).mtimeMs
+          const stat = fs.statSync(location.path)
+          fileTime = stat.mtimeMs
+          fileRevision = `${stat.mtimeMs}:${stat.size}`
         } catch {
           // A session removed between list and stat simply has no new usage.
         }
       }
       if (createdAt < START_AT && fileTime < START_AT && !live.has(snapshot.header.id)) continue
+      const revision = snapshot.revision ?? fileRevision
+      if (revision !== undefined && scannedRevisions.get(snapshot.header.id) === revision) continue
       let handle
       try {
         handle = await persistence.open(snapshot.header.id, 'read')
@@ -444,9 +443,12 @@ export function apply(ctx) {
             if (row !== undefined) append(row)
           }
         }
-        if (state.provider !== undefined || state.model !== undefined) {
+        const current = headers.get(snapshot.header.id)
+        if ((state.provider !== undefined || state.model !== undefined)
+          && (current === undefined || (state.headerSeq ?? -1) > (current.headerSeq ?? -1))) {
           headers.set(snapshot.header.id, state)
         }
+        if (revision !== undefined) scannedRevisions.set(snapshot.header.id, revision)
       } catch (error) {
         ctx.logger?.warn?.(`opencode-go-usage: cannot read session ${snapshot.header?.id}: ${String(error)}`)
       } finally {
@@ -551,9 +553,15 @@ export function apply(ctx) {
     }
   }
 
-  const backfillDone = backfill().catch(error => {
-    ctx.logger?.warn?.(`opencode-go-usage: backfill failed: ${String(error)}`)
-  })
+  let refreshInFlight
+  const refresh = () => {
+    if (refreshInFlight !== undefined) return refreshInFlight
+    refreshInFlight = backfill().catch(error => {
+      ctx.logger?.warn?.(`opencode-go-usage: backfill failed: ${String(error)}`)
+    }).finally(() => { refreshInFlight = undefined })
+    return refreshInFlight
+  }
+  void refresh()
 
   ctx.effect(() => ctx.webServer.register({
     kind: 'prefix',
@@ -590,7 +598,7 @@ export function apply(ctx) {
 
       if (url.pathname !== '/api/opencode-go-usage/summary') return json(res, 404, { error: 'not-found' })
       if (req.method !== 'GET') return json(res, 405, { error: 'method-not-allowed' })
-      await backfillDone
+      await refresh()
       json(res, 200, summarize(url.searchParams.get('end') ?? undefined))
     },
   }))

@@ -9,7 +9,7 @@ GitHub：<https://github.com/dongx114/opencode-go-usage>
 页面包含三个模块：
 
 - **订阅额度**：填入 OpenCode Go API key，显示 5 小时、周、月三个横向额度条；每条显示已用百分比与重置时间。
-- **总消耗**：全部模型合计金额，以及产生过消耗的模型明细（模型名 + 金额）。
+- **总消耗（估算）**：本机 DSH 对话中全部模型的基础 token 计价合计，以及产生过消耗的模型明细（模型名 + 金额）。
 - **每日消耗**：固定 7 天的堆叠柱状图，只需选择「显示终止日期」；柱子按模型分色，悬停显示该日各模型金额与当日合计。
 
 ## 安装
@@ -63,12 +63,12 @@ GitHub 地址安装需要本机有 `git`。没有 `git` 时可以下载源码 ZI
    }
    ```
 
-   当前版本输出 `dsh-opencode-go-usage-0.2.1.tgz`；以命令实际输出的文件名为准。打包只需要 Node.js/npm，不需要先执行 `npm install` 或构建。
+   当前版本输出 `dsh-opencode-go-usage-0.2.2.tgz`；以命令实际输出的文件名为准。打包只需要 Node.js/npm，不需要先执行 `npm install` 或构建。
 
 3. **首次安装**：打开 DSH 的 **插件 → 添加插件**，填入刚生成的 `.tgz` 文件的绝对路径，安装并启用该插件。不要填写源码目录。例如：
 
    ```text
-   C:\Users\你的用户名\.dsh\plugins\local-packages\dsh-opencode-go-usage-0.2.1.tgz
+   C:\Users\你的用户名\.dsh\plugins\local-packages\dsh-opencode-go-usage-0.2.2.tgz
    ```
 
 4. 重新加载 DSH，进入 **更多 → 设置 → 用量消耗**。确认安装正常后，外部源码目录可以移动或删除。
@@ -87,7 +87,7 @@ GitHub 地址安装需要本机有 `git`。没有 `git` 时可以下载源码 ZI
    $profileDir = Join-Path $dshHome 'profiles\web'
    Push-Location $profileDir
    try {
-     pnpm add 'file:../../plugins/local-packages/dsh-opencode-go-usage-0.2.1.tgz' --ignore-scripts
+     pnpm add 'file:../../plugins/local-packages/dsh-opencode-go-usage-0.2.2.tgz' --ignore-scripts
      if ($LASTEXITCODE -ne 0) { throw '插件安装失败，请先解决错误。' }
      node -p "require('node:fs').realpathSync('node_modules/dsh-opencode-go-usage')"
    } finally {
@@ -157,11 +157,11 @@ GitHub 地址安装需要本机有 `git`。没有 `git` 时可以下载源码 ZI
 
 ## 订阅额度
 
-额度来自 OpenCode Go 的官方接口 `GET https://opencode.ai/zen/go/v1/usage`（Bearer 认证）。页面把 key 发送给本机插件宿主，由宿主代请求该接口，避免浏览器的跨域限制。
+额度来自 OpenCode Go 的官方接口 `GET https://opencode.ai/inference/go/v1/usage`（Bearer 认证）。页面把 key 发送给本机插件宿主，由宿主代请求该接口，避免浏览器的跨域限制。
 
 - key 只保存在当前标签页的 `sessionStorage`，关闭标签页后清除；不会写入账本或其它磁盘文件，也不会写入日志。查询成功后刷新页面会自动重新查询；额度变化时点「刷新」。
-- 三个窗口的百分比直接使用接口返回值；金额按「已用百分比 × 额度上限」显示为 `$已用 / $总额`。标准 Go 上限为 5 小时 `$12`、周 `$30`、月 `$60`；若接口返回了自己的 `limit`，优先使用接口值。
-- 如果使用的是 Go Plus / Teams 等其它套餐，请修改 `index.js` 顶部的 `QUOTA_LIMITS`。
+- 三个窗口只显示官方返回的已用百分比和重置时间；进度条按 0–100% 填充可用宽度。
+- 不推算或显示美元额度。Go / Go Plus / Go Teams 的共享额度按模型折算，不能把百分比统一乘以某个固定美元数。
 - 重置时间按北京时间（UTC+8）显示。
 - 额度查询是只读的，不写入用量账本；消耗统计仍只来自 Session 事件。
 - 401 表示 key 无效或不是 Go 订阅 key；403 表示 key 有效但无权读取该 workspace；429 表示查询过于频繁。
@@ -178,15 +178,19 @@ GitHub 地址安装需要本机有 `git`。没有 `git` 时可以下载源码 ZI
 
 单条记录费用 = 命中 token × 命中单价 + 未命中 token × 未命中单价 + 输出 token × 输出单价。折算时使用 `prices.js` 中当前的价格表；每条记录同时保留写入时的单价快照，便于审计。调整价格表会重新折算历史记录。展示层只读取宿主机算好的金额，不含单价或计算公式。
 
-费用按基础单价折算，不叠加 OpenCode Go 的峰谷时段倍率。未知模型会按 0 单价记录；新增模型时请在 `prices.js` 补充价格。
+费用按基础单价折算，尚未计入峰时倍率、长上下文及单独的缓存写入价格，因此是估算值，不能作为官方实际扣费或订阅额度消耗。未知模型会按 0 单价记录；新增模型时请在 `prices.js` 补充价格。
 
 ## 数据来源与统计区间
 
 - 统计区间：北京时间 **2026-11-23 00:01** 起至当前时刻。
 - 数据来源：DeepSeek Harness 的 Session 事件。每条带 `usage` 的 `assistant/message`，以及带 usage 流的 `assistant/attempt`，在 `request/header` 的 provider 为 `opencode-go` 时记入账本。
-- 插件启动时会回填当天已有的 Session，随后实时监听新事件；同一事件按 `sessionId:seq` 去重。
+- 插件启动及页面刷新统计时会回填会话；按持久化版本跳过未变化的会话，补入启动后新建、继续使用或由另一 DSH 进程写入的会话。
+- 实时监听当前 DSH 进程的新事件；模型归属优先采用回答自身的实际模型来源。历史扫描不会覆盖更新的实时模型选择。
+- 同一事件按 `sessionId:seq` 去重；发现旧记录归属错误时追加更正，汇总只采用该事件的最新记录。
 - 账本保存在 `$DSH_HOME/storages/opencode-go-usage/usage.jsonl`（默认 `~/.dsh/storages/opencode-go-usage/usage.jsonl`）。
 - 所有自然日按 UTC+8 切分。
+
+统计范围是当前 DSH 用户目录中的对话，不是 OpenCode 账号的完整账单。其他软件、其他设备、直接 API 调用和未保存为 DSH 会话的模型连接测试，不会自动进入本机对话统计；官方控制台可能包含这些消耗。
 
 ## 关闭插件
 

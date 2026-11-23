@@ -46,7 +46,8 @@ const locale = {
     quotaBadResponse: '额度接口返回异常',
     quotaFailed: '额度查询失败',
     quotaStatus: '状态 {status}',
-    total: '总消耗',
+    total: '总消耗（估算）',
+    scopeHint: '仅统计本机 DSH 对话，金额按基础 token 单价估算',
     since: '北京时间 {time} 起累计',
     daily: '每日消耗',
     last7: '近 7 天',
@@ -110,6 +111,12 @@ function render(values) {
   return textOf(section())
 }
 
+function nodesOf(node, predicate) {
+  if (node === null || node === undefined || typeof node !== 'object') return []
+  if (Array.isArray(node)) return node.flatMap(child => nodesOf(child, predicate))
+  return [...(predicate(node) ? [node] : []), ...nodesOf(node.children ?? [], predicate)]
+}
+
 const model = { id: 'deepseek-v4.1-flash', name: 'DeepSeek V4.1 Flash', amount: 0.2839, tokens: 123, color: '#4F7CFF' }
 const ready = {
   startAt: '2026-11-22T16:01:00Z',
@@ -146,12 +153,13 @@ assert.ok(text.includes('5 小时'))
 assert.ok(text.includes('52%'))
 assert.ok(text.includes('20%'))
 assert.ok(text.includes('61%'))
-assert.ok(text.includes('$6.24 / $12.00'))
-assert.ok(text.includes('$6.00 / $30.00'))
-assert.ok(text.includes('$36.60 / $60.00'))
+assert.ok(!text.includes('$6.24 / $12.00'))
+assert.ok(!text.includes('$6.00 / $30.00'))
+assert.ok(!text.includes('$36.60 / $60.00'))
 assert.ok(text.includes('重置 11-23 16:34'))
 assert.ok(text.includes('更新于 11-23 19:05'))
 assert.ok(text.includes('总消耗'))
+assert.ok(text.includes('仅统计本机 DSH 对话'))
 assert.ok(text.includes('北京时间 11-23 00:01 起累计'))
 assert.ok(text.includes('$0.2839'))
 assert.ok(text.includes('DeepSeek V4.1 Flash'))
@@ -159,6 +167,17 @@ assert.ok(text.includes('每日消耗'))
 assert.ok(text.includes('近 7 天'))
 assert.ok(text.includes('11-23'))
 assert.ok(text.includes('当日合计'))
+
+// The official screen's 0% / 11% / 5% must drive both the visible fill and ARIA.
+const percentOnly = { ...quotaReady, windows: quotaReady.windows.map((item, index) => ({ ...item, percent: [0, 11, 5][index] })) }
+states.push('', ready, 'ready', '', false, -1, 0, '', percentOnly, 'ready', '')
+const percentTree = section()
+const bars = nodesOf(percentTree, node => node.props.role === 'progressbar')
+assert.deepEqual(bars.map(node => node.props['aria-valuenow']), [0, 11, 5])
+assert.deepEqual(nodesOf(percentTree, node => node.props.className === 'ocg-quota-fill').map(node => node.props.style.width), ['0%', '11%', '5%'])
+const quotaSection = nodesOf(percentTree, node => node.props.key === 'quota')[0]
+assert.ok(quotaSection)
+assert.ok(!textOf(quotaSection).includes('$'), 'quota must not display inferred dollar amounts, even from an old response')
 
 const empty = {
   ...ready,

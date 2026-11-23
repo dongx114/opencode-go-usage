@@ -46,7 +46,8 @@ window.__ModuleLoader__.load({
         quotaBadResponse: '额度接口返回异常',
         quotaFailed: '额度查询失败',
         quotaStatus: '状态 {status}',
-        total: '总消耗',
+        total: '总消耗（估算）',
+        scopeHint: '仅统计本机 DSH 对话，金额按基础 token 单价估算',
         since: '北京时间 {time} 起累计',
         daily: '每日消耗',
         last7: '近 7 天',
@@ -89,7 +90,8 @@ window.__ModuleLoader__.load({
         quotaBadResponse: 'Unexpected quota response',
         quotaFailed: 'Could not check quota',
         quotaStatus: 'Status {status}',
-        total: 'Total spend',
+        total: 'Total spend (estimated)',
+        scopeHint: 'Local DSH conversations only; estimated at base token rates',
         since: 'Since {time} UTC+8',
         daily: 'Daily spend',
         last7: 'Last 7 days',
@@ -134,12 +136,11 @@ window.__ModuleLoader__.load({
 .ocg-quota-row{display:grid;grid-template-columns:52px minmax(0,1fr);align-items:center;gap:10px}
 .ocg-quota-label{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px}
 .ocg-quota-body{min-width:0}
-.ocg-quota-line{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0}
-.ocg-quota-track{flex:1 1 160px;max-width:300px;min-width:100px;height:8px;border:0.5px solid var(--dsw-alias-border-l1);border-radius:999px;background:var(--dsw-alias-bg-layer-1);overflow:hidden}
+.ocg-quota-line{display:grid;grid-template-columns:minmax(0,1fr) 4ch;align-items:center;gap:10px;min-width:0}
+.ocg-quota-track{box-sizing:border-box;width:100%;min-width:0;height:10px;border:0.5px solid var(--dsw-alias-border-l1);border-radius:999px;background:var(--dsw-alias-bg-layer-1);overflow:hidden}
 .ocg-quota-fill{height:100%;border-radius:999px;background:var(--ocg-quota-color,var(--dsw-alias-brand-primary,#4F7CFF));transition:width .3s ease}
 .ocg-quota-meta{display:flex;flex-wrap:wrap;gap:2px 8px;margin-top:5px;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:16px}
-.ocg-quota-pct{flex:0 0 38px;text-align:right;font-size:12px;line-height:18px;font-variant-numeric:tabular-nums}
-.ocg-quota-amount{flex:0 0 auto;color:var(--dsw-alias-label-primary);font-size:12px;line-height:18px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ocg-quota-pct{text-align:right;font-size:12px;line-height:18px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .ocg-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .ocg-date{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px}
 .ocg-date input{box-sizing:border-box;min-width:120px;padding:5px 8px;border:0.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;color-scheme:inherit}
@@ -177,7 +178,7 @@ window.__ModuleLoader__.load({
 .ocg-legend-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ocg-state{padding:24px;color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px}
 .ocg-state button{margin-left:10px;padding:4px 12px;border:0.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font:inherit;cursor:pointer}
-@media (max-width:520px){.ocg-page h2{font-size:20px;line-height:28px}.ocg-card{padding:16px}.ocg-plot,.ocg-xaxis{gap:6px}.ocg-xlabel{font-size:10px;line-height:15px}.ocg-total{font-size:32px;line-height:40px}.ocg-quota-row{grid-template-columns:46px minmax(0,1fr);gap:8px}.ocg-quota-label{font-size:11px}.ocg-quota-track{flex-basis:120px;max-width:240px}.ocg-quota-pct{flex-basis:34px}.ocg-quota-amount{font-size:11px}.ocg-quota-form button{flex:1 1 auto}}
+@media (max-width:520px){.ocg-page h2{font-size:20px;line-height:28px}.ocg-card{padding:16px}.ocg-plot,.ocg-xaxis{gap:6px}.ocg-xlabel{font-size:10px;line-height:15px}.ocg-total{font-size:32px;line-height:40px}.ocg-quota-row{grid-template-columns:46px minmax(0,1fr);gap:8px}.ocg-quota-label{font-size:11px}.ocg-quota-form button{flex:1 1 auto}}
 @media (prefers-reduced-motion:reduce){.ocg-bar,.ocg-chart,.ocg-quota-fill{transition:none}}
 `
 
@@ -202,10 +203,6 @@ window.__ModuleLoader__.load({
       if (amount < 1) return `$${amount.toFixed(2)}`
       if (amount < 10) return `$${amount.toFixed(1)}`
       return `$${amount.toFixed(0)}`
-    }
-
-    function quotaMoney(amount) {
-      return Number.isFinite(amount) ? `$${amount.toFixed(2)}` : ''
     }
 
     function dayLabel(date, lang) {
@@ -420,11 +417,6 @@ window.__ModuleLoader__.load({
           const percent = item !== undefined && Number.isFinite(item.percent) ? item.percent : null
           const width = percent === null ? 0 : Math.max(0, Math.min(100, percent))
           const percentText = percent === null ? '--' : `${Math.round(percent)}%`
-          const amount = item !== undefined && Number.isFinite(item.amount) ? item.amount : null
-          const limit = item !== undefined && Number.isFinite(item.limit) ? item.limit : null
-          const amountText = amount === null || limit === null
-            ? ''
-            : `${quotaMoney(amount)} / ${quotaMoney(limit)}`
           const resetText = item?.resetsAt ? beijingTimestamp(item.resetsAt) : ''
           const reset = resetText === '' ? '' : t('quotaReset').replace('{time}', resetText)
           const state = item?.status && !/^(ok|active|normal|good|valid)$/i.test(item.status)
@@ -435,7 +427,7 @@ window.__ModuleLoader__.load({
             : [reset, state].filter(Boolean).join(' · ')
           const valueText = percent === null
             ? undefined
-            : `${t('quotaUsed').replace('{percent}', percentText)}${amountText === '' ? '' : ` · ${amountText}`}`
+            : t('quotaUsed').replace('{percent}', percentText)
           return h('div', { className: 'ocg-quota-row', key: spec.id }, [
             h('span', { className: 'ocg-quota-label', key: 'label' }, t(spec.label)),
             h('div', { className: 'ocg-quota-body', key: 'body' }, [
@@ -444,7 +436,7 @@ window.__ModuleLoader__.load({
                   className: 'ocg-quota-track',
                   key: 'track',
                   role: 'progressbar',
-                  'aria-label': `${t(spec.label)} ${percentText}${amountText === '' ? '' : ` · ${amountText}`}`,
+                  'aria-label': `${t(spec.label)} ${percentText}`,
                   'aria-valuemin': 0,
                   'aria-valuemax': 100,
                   'aria-valuenow': percent === null ? undefined : Math.min(100, Math.round(percent)),
@@ -458,9 +450,6 @@ window.__ModuleLoader__.load({
                   key: 'pct',
                   style: percent === null ? undefined : { color: quotaTone(percent) },
                 }, percentText),
-                amountText === ''
-                  ? null
-                  : h('span', { className: 'ocg-quota-amount', key: 'amount' }, amountText),
               ]),
               detail === '' ? null : h('div', { className: 'ocg-quota-meta', key: 'meta' }, detail),
             ]),
@@ -613,6 +602,7 @@ window.__ModuleLoader__.load({
             h('small', { key: 'since' }, t('since').replace('{time}', beijingTimestamp(data.startAt))),
           ])),
           h('div', { className: 'ocg-total', key: 'amount' }, money(data.total.amount)),
+          h('div', { className: 'ocg-quota-hint', key: 'scope' }, t('scopeHint')),
           data.total.models.length === 0
             ? h('div', { className: 'ocg-empty', key: 'empty' }, t('noUsage'))
             : h('ul', { className: 'ocg-models', key: 'models' }, data.total.models.map(entry => h('li', { className: 'ocg-model', key: entry.id }, [

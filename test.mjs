@@ -8,6 +8,14 @@ const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ocg-usage-test-'))
 process.env.DSH_HOME = home
 
 const NOON = Date.parse('2026-11-23T12:00:00+08:00')
+// Session fixtures describe one fixed day; wall-clock midnight must not change
+// the selected range or make CI fail after that day has passed.
+const originalNow = Date.now
+Date.now = () => NOON + 60_000
+process.on('exit', () => {
+  Date.now = originalNow
+  fs.rmSync(home, { recursive: true, force: true })
+})
 const header = (provider, model) => ({
   type: 'request/header',
   seq: 0,
@@ -140,15 +148,18 @@ assert.equal(new Date(START_AT).toISOString(), '2026-11-22T16:01:00.000Z')
 const normalized = normalizeQuota({
   usage: {
     rolling: { status: 'ok', percent: 52 },
-    weekly: { used: 5, limit: 10 },
+    weekly: { percent: 50, used: 5, limit: 10 },
     monthly: { percent: '61%' },
   },
 })
 assert.deepEqual(normalized, [
-  { id: 'rolling', percent: 52, resetsAt: null, status: 'ok', limit: 12, amount: 6.24, currency: 'USD' },
-  { id: 'weekly', percent: 50, resetsAt: null, status: '', limit: 10, amount: 5, currency: 'USD' },
-  { id: 'monthly', percent: 61, resetsAt: null, status: '', limit: 60, amount: 36.6, currency: 'USD' },
+  { id: 'rolling', percent: 52, resetsAt: null, status: 'ok' },
+  { id: 'weekly', percent: 50, resetsAt: null, status: '' },
+  { id: 'monthly', percent: 61, resetsAt: null, status: '' },
 ])
+assert.deepEqual(normalizeQuota({ usage: { monthly: { used: 3, limit: 60 } } }), [])
+assert.deepEqual(normalizeQuota({ usage: { weekly: { percent: 11 }, monthly: { percent: 5 } } }).map(x => x.percent), [11, 5])
+assert.deepEqual(normalizeQuota({ usage: { monthly: { percent: 150 } } }).map(x => x.percent), [100])
 
 const quotaCall = async (body, options = {}) => {
   let status = 0
@@ -192,11 +203,11 @@ assert.equal(quota.status, 200)
 assert.equal(quota.body.ok, true)
 assert.equal(quota.body.windows.length, 3)
 assert.equal(quota.body.windows[0].percent, 52)
-assert.equal(quota.body.windows[0].limit, 12)
-assert.equal(quota.body.windows[0].amount, 6.24)
-assert.equal(quota.body.windows[0].currency, 'USD')
+assert.equal('limit' in quota.body.windows[0], false)
+assert.equal('amount' in quota.body.windows[0], false)
+assert.equal('currency' in quota.body.windows[0], false)
 assert.equal(quota.body.windows[0].resetsAt, '2026-11-23T08:34:52.704Z')
-assert.equal(upstreamRequest.url, 'https://opencode.ai/zen/go/v1/usage')
+assert.equal(upstreamRequest.url, 'https://opencode.ai/inference/go/v1/usage')
 assert.equal(upstreamRequest.init.method, 'GET')
 assert.equal(upstreamRequest.init.headers.authorization, 'Bearer test-key-not-real')
 
