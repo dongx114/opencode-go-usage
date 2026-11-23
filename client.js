@@ -47,6 +47,9 @@ window.__ModuleLoader__.load({
         quotaFailed: '额度查询失败',
         quotaStatus: '状态 {status}',
         total: '总消耗（估算）',
+        modelBreakdown: '模型明细（{count}）',
+        expandModels: '展开',
+        collapseModels: '收起',
         scopeHint: '仅统计本机 DSH 对话，金额按基础 token 单价估算',
         since: '北京时间 {time} 起累计',
         daily: '每日消耗',
@@ -91,6 +94,9 @@ window.__ModuleLoader__.load({
         quotaFailed: 'Could not check quota',
         quotaStatus: 'Status {status}',
         total: 'Total spend (estimated)',
+        modelBreakdown: 'Model breakdown ({count})',
+        expandModels: 'Expand',
+        collapseModels: 'Collapse',
         scopeHint: 'Local DSH conversations only; estimated at base token rates',
         since: 'Since {time} UTC+8',
         daily: 'Daily spend',
@@ -114,7 +120,18 @@ window.__ModuleLoader__.load({
 .ocg-card-title{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;font-size:14px;font-weight:600;line-height:22px}
 .ocg-card-title small{font-size:11px;line-height:16px;font-weight:400;color:var(--dsw-alias-label-secondary)}
 .ocg-total{margin-top:12px;font-size:36px;line-height:44px;font-weight:650;letter-spacing:-1px;font-variant-numeric:tabular-nums}
-.ocg-models{display:flex;flex-direction:column;gap:10px;margin:16px 0 0;padding:14px 0 0;border-top:1px solid var(--dsw-alias-border-l1);list-style:none}
+.ocg-model-details{margin-top:16px;padding-top:12px;border-top:1px solid var(--dsw-alias-border-l1)}
+.ocg-model-summary{display:flex;align-items:center;gap:8px;padding:3px 0;border-radius:4px;list-style:none;cursor:pointer;font-size:13px;line-height:22px}
+.ocg-model-summary::-webkit-details-marker{display:none}
+.ocg-model-summary:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#4F7CFF);outline-offset:4px}
+.ocg-model-summary-label{flex:1;min-width:0}
+.ocg-model-expand,.ocg-model-collapse{color:var(--dsw-alias-label-secondary);font-size:12px}
+.ocg-model-collapse{display:none}
+.ocg-model-details[open] .ocg-model-expand{display:none}
+.ocg-model-details[open] .ocg-model-collapse{display:inline}
+.ocg-model-chevron{width:6px;height:6px;margin:0 3px 3px 2px;border-right:1.5px solid currentcolor;border-bottom:1.5px solid currentcolor;transform:rotate(45deg);color:var(--dsw-alias-label-secondary)}
+.ocg-model-details[open] .ocg-model-chevron{margin-top:4px;margin-bottom:0;transform:rotate(225deg)}
+.ocg-models{display:flex;flex-direction:column;gap:10px;margin:12px 0 0;padding:0;list-style:none}
 .ocg-model{display:flex;align-items:center;gap:10px;min-width:0;font-size:14px;line-height:22px}
 .ocg-dot{flex:0 0 auto;width:8px;height:8px;border-radius:50%}
 .ocg-model-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -605,11 +622,19 @@ window.__ModuleLoader__.load({
           h('div', { className: 'ocg-quota-hint', key: 'scope' }, t('scopeHint')),
           data.total.models.length === 0
             ? h('div', { className: 'ocg-empty', key: 'empty' }, t('noUsage'))
-            : h('ul', { className: 'ocg-models', key: 'models' }, data.total.models.map(entry => h('li', { className: 'ocg-model', key: entry.id }, [
-              h('i', { className: 'ocg-dot', key: 'dot', style: { background: entry.color } }),
-              h('span', { className: 'ocg-model-name', key: 'name' }, entry.name),
-              h('span', { className: 'ocg-model-amount', key: 'amount' }, money(entry.amount)),
-            ]))),
+            : h('details', { className: 'ocg-model-details', key: 'models' }, [
+              h('summary', { className: 'ocg-model-summary', key: 'summary' }, [
+                h('span', { className: 'ocg-model-summary-label', key: 'label' }, t('modelBreakdown').replace('{count}', String(data.total.models.length))),
+                h('span', { className: 'ocg-model-expand', key: 'expand' }, t('expandModels')),
+                h('span', { className: 'ocg-model-collapse', key: 'collapse' }, t('collapseModels')),
+                h('i', { className: 'ocg-model-chevron', key: 'chevron', 'aria-hidden': true }),
+              ]),
+              h('ul', { className: 'ocg-models', key: 'list' }, data.total.models.map(entry => h('li', { className: 'ocg-model', key: entry.id }, [
+                h('i', { className: 'ocg-dot', key: 'dot', style: { background: entry.color } }),
+                h('span', { className: 'ocg-model-name', key: 'name' }, entry.name),
+                h('span', { className: 'ocg-model-amount', key: 'amount' }, money(entry.amount)),
+              ]))),
+            ]),
         ])
 
         const dailyCard = h('section', { className: 'ocg-card ocg-card-daily', key: 'daily', 'aria-busy': busy ? 'true' : 'false' }, [

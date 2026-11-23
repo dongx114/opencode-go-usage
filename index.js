@@ -158,7 +158,7 @@ async function fetchQuota(key) {
       headers: {
         authorization: `Bearer ${key}`,
         accept: 'application/json',
-        'user-agent': 'dsh-opencode-go-usage/0.2.2',
+        'user-agent': 'dsh-opencode-go-usage/0.2.3',
       },
       signal: controller.signal,
       redirect: 'follow',
