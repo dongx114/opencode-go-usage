@@ -1,6 +1,6 @@
 {
   "name": "dsh-opencode-go-usage",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "OpenCode Go subscription quota, token spend priced per model, for DeepSeek Harness.",
   "private": true,
   "license": "MIT",
@@ -21,7 +21,7 @@
     "usage"
   ],
   "scripts": {
-    "test": "node test.mjs && node test-client.mjs && node test-render.mjs && node test-tracking.mjs"
+    "test": "node test.mjs && node test-client.mjs && node test-render.mjs && node test-tracking.mjs && node test-credentials.mjs && node test-key-client.mjs"
   },
   "type": "module",
   "main": "index.js",

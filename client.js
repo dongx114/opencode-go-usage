@@ -23,7 +23,10 @@ window.__ModuleLoader__.load({
         quotaSmall: 'OpenCode Go · 已用比例',
         keyLabel: 'API key',
         keyPlaceholder: '粘贴 OpenCode Go API key',
-        keyHint: '仅保存在当前标签页，关闭标签页后清除',
+        keyHint: '查询时保存到本机 DSH 凭据，重启后自动使用',
+        keySaved: '已保存 API key，留空使用；输入新 key 可替换',
+        clearKey: '清除已保存 key',
+        keyStorageFailed: '无法读写本机凭据，请重试或检查 DSH 凭据服务',
         query: '查询',
         refresh: '刷新',
         querying: '查询中…',
@@ -70,7 +73,10 @@ window.__ModuleLoader__.load({
         quotaSmall: 'OpenCode Go · used',
         keyLabel: 'API key',
         keyPlaceholder: 'Paste an OpenCode Go API key',
-        keyHint: 'Kept only in this tab; cleared when the tab closes',
+        keyHint: 'Saved in local DSH credentials when checked; reused after restart',
+        keySaved: 'API key saved; leave blank to reuse or enter a replacement',
+        clearKey: 'Clear saved key',
+        keyStorageFailed: 'Cannot access local credentials; retry or check the DSH credentials service',
         query: 'Check',
         refresh: 'Refresh',
         querying: 'Checking…',
@@ -148,10 +154,14 @@ window.__ModuleLoader__.load({
 .ocg-quota-form{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .ocg-quota-input{box-sizing:border-box;flex:1 1 220px;min-width:0;padding:7px 10px;border:0.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:13px;line-height:20px}
 .ocg-quota-input:focus{outline:2px solid var(--dsw-alias-brand-primary,#4F7CFF);outline-offset:1px}
-.ocg-quota-form button{flex:0 0 auto;padding:7px 16px;border:0;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-brand-primary,#4F7CFF);color:#fff;font:inherit;font-size:13px;line-height:20px;cursor:pointer}
+.ocg-quota-form button{flex:0 0 auto;padding:7px 16px;border:0;border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-brand-primary,#4F7CFF);color:var(--dsw-alias-label-primary-foreground,light-dark(#fff,#000));font:inherit;font-size:13px;line-height:20px;cursor:pointer}
 .ocg-quota-form button:disabled{opacity:.55;cursor:default}
 .ocg-quota-form button:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#4F7CFF);outline-offset:2px}
 .ocg-quota-hint{margin-top:6px;color:var(--dsw-alias-label-secondary);font-size:11px;line-height:16px}
+.ocg-quota-hint-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:2px 8px}
+.ocg-quota-clear{padding:0;border:0;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;text-decoration:underline;cursor:pointer}
+.ocg-quota-clear:disabled{opacity:.55;cursor:default}
+.ocg-quota-clear:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#4F7CFF);outline-offset:2px}
 .ocg-quota-message{margin-top:10px;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px}
 .ocg-quota-message[data-error='true']{color:var(--dsw-alias-state-error-primary,#d64545)}
 .ocg-quota-updated{color:var(--dsw-alias-label-secondary);font-size:11px;line-height:16px;white-space:nowrap}
@@ -252,6 +262,8 @@ window.__ModuleLoader__.load({
 
     function quotaErrorKey(code) {
       switch (code) {
+        case 'credential-storage':
+          return 'keyStorageFailed'
         case 'keyRequired':
         case 'bad-key':
           return 'keyRequired'
@@ -287,20 +299,28 @@ window.__ModuleLoader__.load({
       }
     }
 
-    function storeKey(key) {
-      try {
-        if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(QUOTA_KEY_STORAGE, key)
-      } catch {
-        // A browser that blocks sessionStorage only loses the convenience restore.
-      }
-    }
-
     function clearStoredKey() {
       try {
         if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(QUOTA_KEY_STORAGE)
       } catch {
         // A browser that blocks sessionStorage has nothing to clear.
       }
+    }
+
+    async function savedKeyRequest(method, key) {
+      const response = await fetch('/api/opencode-go-usage/quota-key', {
+        method,
+        cache: 'no-store',
+        ...(method === 'POST' ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key }) } : {}),
+      })
+      let body
+      try { body = await response.json() } catch { /* Generic response error below. */ }
+      if (!response.ok || body?.ok !== true || typeof body.configured !== 'boolean') {
+        const failure = new Error('credential-storage')
+        failure.code = body?.error === 'bad-key' ? 'bad-key' : 'credential-storage'
+        throw failure
+      }
+      return body.configured
     }
 
     function UsageIcon({ size = 16 }) {
@@ -339,14 +359,16 @@ window.__ModuleLoader__.load({
         const [quota, setQuota] = useState(null)
         const [quotaStatus, setQuotaStatus] = useState('idle')
         const [quotaError, setQuotaError] = useState('')
-        const restoredKey = useRef(false)
+        const [savedKey, setSavedKey] = useState(false)
+        const savedKeyRef = useRef(false)
+        const keyEdited = useRef(false)
         const quotaRequest = useRef(0)
 
         const queryQuota = useCallback(async rawKey => {
           const requestId = quotaRequest.current + 1
           quotaRequest.current = requestId
           const candidate = rawKey.trim()
-          if (candidate === '') {
+          if (candidate === '' && !savedKeyRef.current) {
             setQuota(null)
             setQuotaStatus('error')
             setQuotaError('keyRequired')
@@ -355,11 +377,19 @@ window.__ModuleLoader__.load({
           setQuotaStatus('loading')
           setQuotaError('')
           try {
+            if (candidate !== '') {
+              const configured = await savedKeyRequest('POST', candidate)
+              if (requestId !== quotaRequest.current) return
+              savedKeyRef.current = configured
+              setSavedKey(configured)
+              setKey('')
+              clearStoredKey()
+            }
             const response = await fetch('/api/opencode-go-usage/quota', {
               method: 'POST',
               cache: 'no-store',
               headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ key: candidate }),
+              body: JSON.stringify({}),
             })
             let body = null
             try {
@@ -376,7 +406,6 @@ window.__ModuleLoader__.load({
             }
             setQuota(body)
             setQuotaStatus('ready')
-            storeKey(candidate)
           } catch (reason) {
             if (requestId !== quotaRequest.current) return
             setQuota(null)
@@ -386,23 +415,62 @@ window.__ModuleLoader__.load({
         }, [])
 
         const changeKey = useCallback(value => {
+          keyEdited.current = true
           setKey(value)
-          if (value.trim() !== '') return
-          clearStoredKey()
           quotaRequest.current += 1
           setQuota(null)
           setQuotaStatus('idle')
           setQuotaError('')
         }, [])
 
-        useEffect(() => {
-          if (restoredKey.current) return
-          restoredKey.current = true
-          const stored = readStoredKey()
-          if (stored !== '') {
-            setKey(stored)
-            void queryQuota(stored)
+        const forgetKey = useCallback(async () => {
+          keyEdited.current = true
+          const requestId = ++quotaRequest.current
+          setQuotaStatus('loading')
+          setQuotaError('')
+          try {
+            const configured = await savedKeyRequest('DELETE')
+            if (requestId !== quotaRequest.current) return
+            savedKeyRef.current = configured
+            setSavedKey(configured)
+            setKey('')
+            clearStoredKey()
+            setQuota(null)
+            setQuotaStatus('idle')
+          } catch (reason) {
+            if (requestId !== quotaRequest.current) return
+            setQuotaStatus('error')
+            setQuotaError(typeof reason?.code === 'string' ? reason.code : 'network')
           }
+        }, [])
+
+        useEffect(() => {
+          let cancelled = false
+          const restore = async () => {
+            try {
+              const configured = await savedKeyRequest('GET')
+              if (cancelled || keyEdited.current) return
+              savedKeyRef.current = configured
+              setSavedKey(configured)
+              if (configured) {
+                clearStoredKey()
+                void queryQuota('')
+              } else {
+                // One-time migration from the old tab-only storage.
+                const legacy = readStoredKey()
+                if (legacy !== '') {
+                  setKey(legacy)
+                  void queryQuota(legacy)
+                }
+              }
+            } catch (reason) {
+              if (cancelled || keyEdited.current) return
+              setQuotaStatus('error')
+              setQuotaError(typeof reason?.code === 'string' ? reason.code : 'network')
+            }
+          }
+          void restore()
+          return () => { cancelled = true }
         }, [queryQuota])
 
         useEffect(() => {
@@ -515,7 +583,8 @@ window.__ModuleLoader__.load({
               type: 'password',
               value: key,
               maxLength: 512,
-              placeholder: t('keyPlaceholder'),
+              placeholder: t(savedKey ? 'keySaved' : 'keyPlaceholder'),
+              disabled: quotaStatus === 'loading',
               autoComplete: 'off',
               autoCapitalize: 'off',
               autoCorrect: 'off',
@@ -526,10 +595,13 @@ window.__ModuleLoader__.load({
             h('button', {
               key: 'submit',
               type: 'submit',
-              disabled: quotaStatus === 'loading' || key.trim() === '',
+              disabled: quotaStatus === 'loading' || (!savedKey && key.trim() === ''),
             }, quotaStatus === 'loading' ? t('querying') : quota === null ? t('query') : t('refresh')),
           ]),
-          h('div', { className: 'ocg-quota-hint', key: 'hint', id: `${QUOTA_KEY_ID}-hint` }, t('keyHint')),
+          h('div', { className: 'ocg-quota-hint ocg-quota-hint-row', key: 'hint', id: `${QUOTA_KEY_ID}-hint` }, [
+            h('span', { key: 'text' }, t('keyHint')),
+            savedKey ? h('button', { className: 'ocg-quota-clear', type: 'button', key: 'clear', onClick: () => { void forgetKey() }, disabled: quotaStatus === 'loading' }, t('clearKey')) : null,
+          ]),
           quotaMessage,
           h('div', { className: 'ocg-quota-list', key: 'list' }, quotaRows),
         ])

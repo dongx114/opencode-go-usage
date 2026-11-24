@@ -65,12 +65,12 @@ GitHub 地址安装需要本机有 `git`。没有 `git` 时可以下载源码 ZI
    }
    ```
 
-   当前版本输出 `dsh-opencode-go-usage-0.2.4.tgz`；以命令实际输出的文件名为准。打包只需要 Node.js/npm，不需要先执行 `npm install` 或构建。
+   当前版本输出 `dsh-opencode-go-usage-0.2.5.tgz`；以命令实际输出的文件名为准。打包只需要 Node.js/npm，不需要先执行 `npm install` 或构建。
 
 3. **首次安装**：打开 DSH 的 **插件 → 添加插件**，填入刚生成的 `.tgz` 文件的绝对路径，安装并启用该插件。不要填写源码目录。例如：
 
    ```text
-   C:\Users\你的用户名\.dsh\plugins\local-packages\dsh-opencode-go-usage-0.2.4.tgz
+   C:\Users\你的用户名\.dsh\plugins\local-packages\dsh-opencode-go-usage-0.2.5.tgz
    ```
 
 4. 重新加载 DSH，进入 **更多 → 设置 → 用量消耗**。确认安装正常后，外部源码目录可以移动或删除。
@@ -89,7 +89,7 @@ GitHub 地址安装需要本机有 `git`。没有 `git` 时可以下载源码 ZI
    $profileDir = Join-Path $dshHome 'profiles\web'
    Push-Location $profileDir
    try {
-     pnpm add 'file:../../plugins/local-packages/dsh-opencode-go-usage-0.2.4.tgz' --ignore-scripts
+     pnpm add 'file:../../plugins/local-packages/dsh-opencode-go-usage-0.2.5.tgz' --ignore-scripts
      if ($LASTEXITCODE -ne 0) { throw '插件安装失败，请先解决错误。' }
      node -p "require('node:fs').realpathSync('node_modules/dsh-opencode-go-usage')"
    } finally {
@@ -161,7 +161,10 @@ GitHub 地址安装需要本机有 `git`。没有 `git` 时可以下载源码 ZI
 
 额度来自 OpenCode Go 的官方接口 `GET https://opencode.ai/inference/go/v1/usage`（Bearer 认证）。页面把 key 发送给本机插件宿主，由宿主代请求该接口，避免浏览器的跨域限制。
 
-- key 只保存在当前标签页的 `sessionStorage`，关闭标签页后清除；不会写入账本或其它磁盘文件，也不会写入日志。查询成功后刷新页面会自动重新查询；额度变化时点「刷新」。
+- 输入 key 后点击「查询」，会保存到本机 DSH 的凭据服务（默认 `$DSH_HOME/.credentials.yaml`），刷新页面或重启 DSH 后自动查询，无需再次输入。该记录独立于模型供应商的 key，不会改动供应商配置。
+- 页面显示「已保存 API key」，不回传完整密钥；留空点「刷新」继续使用，输入新 key 点「查询」可替换，点「清除已保存 key」可删除本插件的记录。即使额度接口暂时不可达，已经保存的 key 仍会保留。
+- 旧标签页的临时 key 在首次打开新版页面时自动迁移，保存成功后清除临时副本。密钥不会写入用量账本、插件源码或查询日志。凭据存储由 DSH 管理，并非浏览器 localStorage。
+- 「查询／刷新」按钮使用宿主主题的前景色，浅色模式为白字，深色模式为黑字。
 - 三个窗口只显示官方返回的已用百分比和重置时间；进度条按 0–100% 填充可用宽度。
 - 不推算或显示美元额度。Go / Go Plus / Go Teams 的共享额度按模型折算，不能把百分比统一乘以某个固定美元数。
 - 重置时间按北京时间（UTC+8）显示。

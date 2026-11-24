@@ -14,6 +14,7 @@ const LOOPBACK_HOST = /^(127\.0\.0\.1|localhost|\[::1\])(?::\d+)?$/i
 const QUOTA_URL = 'https://opencode.ai/inference/go/v1/usage'
 const QUOTA_TIMEOUT_MS = 30_000
 const QUOTA_BODY_LIMIT = 16 * 1024
+const QUOTA_CREDENTIAL = 'dsh-opencode-go-usage/quota'
 const QUOTA_WINDOWS = [
   { id: 'rolling', aliases: ['rolling', 'rolling5h', 'fivehour', 'five_hour', '5h', 'session'] },
   { id: 'weekly', aliases: ['weekly', 'week', 'weeklywindow'] },
@@ -158,7 +159,7 @@ async function fetchQuota(key) {
       headers: {
         authorization: `Bearer ${key}`,
         accept: 'application/json',
-        'user-agent': 'dsh-opencode-go-usage/0.2.4',
+        'user-agent': 'dsh-opencode-go-usage/0.2.5',
       },
       signal: controller.signal,
       redirect: 'follow',
@@ -316,6 +317,23 @@ function rememberHeader(state, event) {
  * @param ctx - Host plugin context.
  */
 export function apply(ctx) {
+  // Keep this plugin's saved key separate from model-provider credentials.
+  // The host owns locking, atomic writes, and the credentials document format.
+  const credentialStore = () => {
+    const store = typeof ctx.get === 'function' ? ctx.get('credentials') : ctx.credentials
+    if (!store?.readRecord || !store?.modifyRecord || !store?.deleteRecord) throw new Error('credential-storage')
+    return store
+  }
+  const savedQuotaKey = async () => {
+    const record = await credentialStore().readRecord(QUOTA_CREDENTIAL)
+    return record?.kind === 'api-key' ? normalizeApiKey(record.key) : ''
+  }
+  let keyMutation = Promise.resolve()
+  const mutateKey = operation => {
+    const pending = keyMutation.then(operation)
+    keyMutation = pending.catch(() => {})
+    return pending
+  }
   const dataDir = path.join(resolveHome(), 'storages', 'opencode-go-usage')
   const ledger = path.join(dataDir, 'usage.jsonl')
   const rows = new Map()
@@ -575,6 +593,28 @@ export function apply(ctx) {
         return json(res, 400, { error: 'bad-request' })
       }
 
+      if (url.pathname === '/api/opencode-go-usage/quota-key') {
+        if (!['GET', 'POST', 'DELETE'].includes(req.method)) return json(res, 405, { error: 'method-not-allowed' })
+        try {
+          if (req.method === 'POST') {
+            const text = await readBoundedBody(req)
+            if (text === null) return json(res, 413, { error: 'too-large' })
+            let body
+            try { body = JSON.parse(text) } catch { return json(res, 400, { error: 'bad-request' }) }
+            const key = normalizeApiKey(body?.key)
+            if (key === '') return json(res, 400, { error: 'bad-key' })
+            await mutateKey(() => credentialStore().modifyRecord(QUOTA_CREDENTIAL, async () => ({ kind: 'api-key', key })))
+          } else if (req.method === 'DELETE') {
+            await mutateKey(() => credentialStore().deleteRecord(QUOTA_CREDENTIAL))
+          }
+          await keyMutation
+          return json(res, 200, { ok: true, configured: (await savedQuotaKey()) !== '' })
+        } catch {
+          // Provider errors may contain secret material; never echo or log them.
+          return json(res, 503, { error: 'credential-storage' })
+        }
+      }
+
       if (url.pathname === '/api/opencode-go-usage/quota') {
         if (req.method !== 'POST') return json(res, 405, { error: 'method-not-allowed' })
         let text
@@ -590,7 +630,15 @@ export function apply(ctx) {
         } catch {
           return json(res, 400, { error: 'bad-request' })
         }
-        const key = normalizeApiKey(body?.key)
+        let key = normalizeApiKey(body?.key)
+        if (body?.key === undefined) {
+          try {
+            await keyMutation
+            key = await savedQuotaKey()
+          } catch {
+            return json(res, 503, { error: 'credential-storage' })
+          }
+        }
         if (key === '') return json(res, 400, { error: 'bad-key' })
         const result = await fetchQuota(key)
         return json(res, result.status, result.body)
